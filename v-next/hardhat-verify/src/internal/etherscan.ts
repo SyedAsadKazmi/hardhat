@@ -50,14 +50,13 @@ export class Etherscan implements VerificationProvider {
     chainId: number;
     name?: string;
     url: string;
-    apiUrl?: string;
     apiKey: string;
     dispatcher?: Dispatcher;
   }) {
     this.chainId = String(etherscanConfig.chainId);
     this.name = etherscanConfig.name ?? "Etherscan";
     this.url = etherscanConfig.url;
-    this.apiUrl = etherscanConfig.apiUrl ?? ETHERSCAN_API_URL;
+    this.apiUrl = ETHERSCAN_API_URL;
 
     const proxyUrl = shouldUseProxy(this.apiUrl)
       ? getProxyUrl(this.apiUrl)
@@ -320,6 +319,14 @@ export class Etherscan implements VerificationProvider {
       );
     }
 
+    // Check for success or failure first before throwing errors
+    if (etherscanResponse.isFailure() || etherscanResponse.isSuccess()) {
+      return {
+        success: etherscanResponse.isSuccess(),
+        message: etherscanResponse.message,
+      };
+    }
+
     if (!etherscanResponse.isOk()) {
       throw new HardhatError(
         HardhatError.ERRORS.HARDHAT_VERIFY.GENERAL.CONTRACT_VERIFICATION_STATUS_POLLING_FAILED,
@@ -327,18 +334,11 @@ export class Etherscan implements VerificationProvider {
       );
     }
 
-    if (!(etherscanResponse.isFailure() || etherscanResponse.isSuccess())) {
-      // Reaching this point shouldn't be possible unless the API is behaving in a new way.
-      throw new HardhatError(
-        HardhatError.ERRORS.HARDHAT_VERIFY.GENERAL.CONTRACT_VERIFICATION_UNEXPECTED_RESPONSE,
-        { message: etherscanResponse.message },
-      );
-    }
-
-    return {
-      success: etherscanResponse.isSuccess(),
-      message: etherscanResponse.message,
-    };
+    // Reaching this point shouldn't be possible unless the API is behaving in a new way.
+    throw new HardhatError(
+      HardhatError.ERRORS.HARDHAT_VERIFY.GENERAL.CONTRACT_VERIFICATION_UNEXPECTED_RESPONSE,
+      { message: etherscanResponse.message },
+    );
   }
 }
 
@@ -383,7 +383,7 @@ class EtherscanVerificationStatusResponse
   }
 
   public isFailure(): boolean {
-    return this.message === "Fail - Unable to verify";
+    return this.message.startsWith("Fail - Unable to verify");
   }
 
   public isSuccess(): boolean {
